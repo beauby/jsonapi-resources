@@ -180,7 +180,7 @@ module JSONAPI
       relationships = source.class._relationships
       requested = requested_fields(source.class)
       fields = relationships.keys
-      fields = requested & fields unless requested.nil?
+      fields &= requested unless requested.nil?
 
       field_set = Set.new(fields)
 
@@ -195,34 +195,23 @@ module JSONAPI
             hash[format_key(name)] = link_object(source, relationship, include_linkage)
           end
 
-          type = relationship.type
-
           # If the object has been serialized once it will be in the related objects list,
           # but it's possible all children won't have been captured. So we must still go
           # through the relationships.
           if include_linkage
-            if relationship.is_a?(JSONAPI::Relationship::ToOne)
-              resource = source.public_send(name)
-              if resource
-                id = resource.id
+            resources = Array(source.public_send(name))
+            resources.each do |resource|
+              id = resource.id
+              if relationship.is_a?(JSONAPI::Relationship::ToOne)
                 type = relationship.type_for_source(source)
-                relationships_only = already_serialized?(type, id)
-                if include_linkage && !relationships_only
-                  add_included_object(id, object_hash(resource, ia))
-                elsif include_linkage || relationships_only
-                  relationships_hash(resource, ia)
-                end
+              elsif relationship.is_a?(JSONAPI::Relationship::ToMany)
+                type = relationship.type
               end
-            elsif relationship.is_a?(JSONAPI::Relationship::ToMany)
-              resources = source.public_send(name)
-              resources.each do |resource|
-                id = resource.id
-                relationships_only = already_serialized?(type, id)
-                if include_linkage && !relationships_only
-                  add_included_object(id, object_hash(resource, ia))
-                elsif include_linkage || relationships_only
-                  relationships_hash(resource, ia)
-                end
+              relationships_only = already_serialized?(type, id)
+              if include_linkage && !relationships_only
+                add_included_object(id, object_hash(resource, ia))
+              elsif include_linkage || relationships_only
+                relationships_hash(resource, ia)
               end
             end
           end
